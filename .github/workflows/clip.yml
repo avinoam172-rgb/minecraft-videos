@@ -1,0 +1,59 @@
+name: clip
+# Cuts a piece out of a recording (one or more parts) and puts it in the "clips" release.
+# Started from the website ("קטע" button).
+on:
+  workflow_dispatch:
+    inputs:
+      parts:
+        description: "Part file names, in order, separated by spaces"
+        required: true
+      start:
+        description: "Start, in seconds from the beginning of the first part"
+        required: true
+      end:
+        description: "End, in seconds from the beginning of the last part"
+        required: true
+      name:
+        description: "Name of the clip file"
+        required: true
+permissions:
+  contents: write
+jobs:
+  clip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Cut the clip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PARTS: ${{ inputs.parts }}
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+          NAME: ${{ inputs.name }}
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          case "$NAME" in *[!A-Za-z0-9._-]*|"") echo "bad name"; exit 1;; esac
+          mkdir -p parts
+          tags=$(gh release list -R "$REPO" --limit 100 --json tagName -q '.[].tagName' | grep -E '^videos(-[0-9]+)?$' || true)
+          : > list.txt
+          before=0
+          names=($PARTS)
+          last=$(( ${#names[@]} - 1 ))
+          for i in "${!names[@]}"; do
+            n="${names[$i]}"
+            case "$n" in *[!A-Za-z0-9._-]*) echo "bad part name"; exit 1;; esac
+            for t in $tags; do gh release download "$t" -R "$REPO" -p "$n" -D parts --clobber 2>/dev/null && break || true; done
+            test -f "parts/$n" || { echo "missing $n"; exit 1; }
+            echo "file 'parts/$n'" >> list.txt
+            if [ "$i" -lt "$last" ]; then
+              d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "parts/$n")
+              before=$(python3 -c "print($before + $d)")
+            fi
+          done
+          end=$(python3 -c "print($before + float('$END'))")
+          ffmpeg -hide_banner -loglevel error -f concat -safe 0 -i list.txt -ss "$START" -to "$end" \
+            -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 160k -movflags +faststart "$NAME"
+          gh release view clips -R "$REPO" >/dev/null 2>&1 || gh release create clips -R "$REPO" -t "Clips" -n "Pieces cut on the website"
+          gh release upload clips "$NAME" -R "$REPO" --clobber
