@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>הסרטונים שלי ממיינקראפט</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Secular+One&family=Assistant:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one column of days; each day is a heading band followed by a grid of clips (grass / dirt palette) */
+:root {
+  --bg: #f1f2ec;
+  --surface: #ffffff;
+  --ink: #1d2420;
+  --muted: #66706a;
+  --line: #d9ddd3;
+  --grass: #2f7d57;
+  --grass-ink: #ffffff;
+  --dirt: #8a5a2b;
+  --shadow: 0 1px 2px rgba(29,36,32,.08), 0 6px 18px rgba(29,36,32,.06);
+  --display: "Secular One", "Assistant", system-ui, sans-serif;
+  --body: "Assistant", system-ui, "Segoe UI", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141815; --surface: #1d231f; --ink: #e8ece6; --muted: #9aa49d; --line: #2e3631;
+    --grass: #4fae80; --grass-ink: #0f1511; --dirt: #c48a52;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+header { padding-block: 32px 20px; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; border-bottom: 2px solid var(--line); }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5vw, 44px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 .block { display: inline-block; width: .7em; height: .7em; background: linear-gradient(var(--grass) 0 35%, var(--dirt) 35% 100%); margin-inline-start: .3em; vertical-align: .05em; border-radius: 2px; }
+.stats { font-family: var(--mono); font-size: 13px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 500; }
+.tools { display: flex; gap: 10px; align-items: center; padding-block: 16px; flex-wrap: wrap; }
+input[type=search] { flex: 1 1 220px; min-width: 0; font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+input[type=search]:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--grass); outline-offset: 2px; }
+.day { margin-top: 28px; }
+.day h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0 0 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.day h2 small { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.clip { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
+.screen { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #0d110e; display: grid; place-items: center; }
+.screen video { width: 100%; height: 100%; display: block; background: #000; }
+.play { border: 0; cursor: pointer; width: 64px; height: 64px; border-radius: 50%; background: var(--grass); color: var(--grass-ink); font-size: 26px; display: grid; place-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.35); transition: transform .15s ease; }
+.play:hover { transform: scale(1.06); }
+.screen .tag { position: absolute; top: 10px; inset-inline-start: 10px; font-family: var(--mono); font-size: 12px; color: #e8ece6; background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 4px; }
+.meta { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.meta .info { min-width: 0; }
+.meta .time { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.meta .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.dl { flex: none; text-decoration: none; font-weight: 600; font-size: 14px; color: var(--dirt); border: 1.5px solid var(--dirt); padding: 6px 12px; border-radius: 8px; }
+.dl:hover { background: var(--dirt); color: var(--surface); }
+.state { margin-top: 40px; text-align: center; color: var(--muted); }
+.state strong { display: block; color: var(--ink); font-family: var(--display); font-weight: 400; font-size: 22px; margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { .play { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>הסרטונים שלי<span class="block" aria-hidden="true"></span></h1>
+    <div class="stats" id="stats"><span>טוען…</span></div>
+  </header>
+  <div class="tools">
+    <input type="search" id="q" placeholder="חיפוש לפי תאריך או שם קובץ" aria-label="חיפוש">
+  </div>
+  <main id="list"></main>
+</div>
+<script>
+const REPO = "avinoam172-rgb/minecraft-videos";
+const API = "https://api.github.com/repos/" + REPO + "/releases/tags/videos";
+const days = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+const months = ["בינואר","בפברואר","במרץ","באפריל","במאי","ביוני","ביולי","באוגוסט","בספטמבר","באוקטובר","בנובמבר","בדצמבר"];
+let all = [];
+
+function when(asset) {
+  // Recorded time is in the file name: minecraft-2026-11-04_23-41-07.mp4 (your own clock)
+  const m = asset.name.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return new Date(asset.created_at);
+}
+function size(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : Math.round(b / 1048576) + " MB"; }
+function pad(n) { return String(n).padStart(2, "0"); }
+function dayKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function dayTitle(d) {
+  const today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1);
+  const base = "יום " + days[d.getDay()] + ", " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear();
+  if (dayKey(d) === dayKey(today)) return "היום · " + base;
+  if (dayKey(d) === dayKey(y)) return "אתמול · " + base;
+  return base;
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function render() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const list = document.getElementById("list");
+  list.replaceChildren();
+  const shown = all.filter(v => !q || v.name.toLowerCase().includes(q) || dayTitle(v.date).includes(q) || dayKey(v.date).includes(q));
+  if (!shown.length) {
+    const s = el("div", "state");
+    s.append(el("strong", null, all.length ? "לא נמצא סרטון כזה" : "אין עדיין סרטונים"),
+             el("span", null, all.length ? "נסה חיפוש אחר." : "במשחק: /video start או /video auto, ואז /video save. הסרטון יעלה לכאן לבד."));
+    list.append(s);
+    return;
+  }
+  const groups = new Map();
+  for (const v of shown) { const k = dayKey(v.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); }
+  for (const [, vids] of groups) {
+    const sec = el("section", "day");
+    const h = el("h2", null, dayTitle(vids[0].date));
+    const total = vids.reduce((a, v) => a + v.size, 0);
+    h.append(el("small", null, vids.length + " סרטונים · " + size(total)));
+    const grid = el("div", "grid");
+    for (const v of vids) {
+      const card = el("article", "clip");
+      const screen = el("div", "screen");
+      const play = el("button", "play", "▶");
+      play.type = "button";
+      play.setAttribute("aria-label", "נגן את הסרטון של " + pad(v.date.getHours()) + ":" + pad(v.date.getMinutes()));
+      play.addEventListener("click", () => {
+        const video = document.createElement("video");
+        video.controls = true; video.autoplay = true; video.preload = "auto";
+        video.src = v.url;
+        screen.replaceChildren(video);
+      });
+      screen.append(play, el("span", "tag", size(v.size)));
+      const meta = el("div", "meta");
+      const info = el("div", "info");
+      info.append(el("div", "time", pad(v.date.getHours()) + ":" + pad(v.date.getMinutes())), el("div", "sub", v.name));
+      const dl = el("a", "dl", "הורדה");
+      dl.href = v.url; dl.setAttribute("download", v.name);
+      meta.append(info, dl);
+      card.append(screen, meta);
+      grid.append(card);
+    }
+    sec.append(h, grid);
+    list.append(sec);
+  }
+}
+
+async function load() {
+  const stats = document.getElementById("stats");
+  try {
+    const r = await fetch(API, { headers: { Accept: "application/vnd.github+json" } });
+    if (r.status === 404) { all = []; }
+    else if (!r.ok) throw new Error(r.status === 403 ? "GitHub מגביל כמה פעמים בשעה אפשר לטעון. נסה שוב עוד כמה דקות." : "GitHub ענה " + r.status);
+    else {
+      const rel = await r.json();
+      all = rel.assets.filter(a => /\.mp4$/i.test(a.name))
+        .map(a => ({ name: a.name, size: a.size, url: a.browser_download_url, date: when(a) }))
+        .sort((a, b) => b.date - a.date);
+    }
+    const total = all.reduce((a, v) => a + v.size, 0);
+    stats.replaceChildren();
+    const a = el("span"); a.append(el("b", null, String(all.length)), " סרטונים");
+    const b = el("span"); b.append(el("b", null, size(total)), " בסך הכל");
+    stats.append(a, b);
+    render();
+  } catch (e) {
+    stats.textContent = "";
+    const s = el("div", "state");
+    s.append(el("strong", null, "לא הצלחתי לטעון את הסרטונים"), el("span", null, e.message));
+    document.getElementById("list").replaceChildren(s);
+  }
+}
+document.getElementById("q").addEventListener("input", render);
+load();
+</script>
+</body>
+</html>
