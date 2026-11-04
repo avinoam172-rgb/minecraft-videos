@@ -66,6 +66,34 @@ input[type=search]:focus-visible, button:focus-visible, a:focus-visible { outlin
 .dl:hover { background: var(--dirt); color: var(--surface); }
 .state { margin-top: 40px; text-align: center; color: var(--muted); }
 .state strong { display: block; color: var(--ink); font-family: var(--display); font-weight: 400; font-size: 22px; margin-bottom: 6px; }
+.partinfo { display: block; font-family: var(--mono); font-size: 12px; color: var(--grass); }
+.more { border-top: 1px solid var(--line); padding: 8px 14px 12px; }
+.more summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--muted); }
+.parts { display: grid; gap: 6px; margin-top: 8px; max-height: 220px; overflow-y: auto; }
+.part { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pbtn { font: inherit; font-size: 14px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 3px 10px; }
+.pbtn:hover { border-color: var(--grass); }
+.pdl { font-size: 13px; color: var(--dirt); text-decoration: none; font-family: var(--mono); }
+.pdl:hover { text-decoration: underline; }
+.settings { flex: 0 0 auto; }
+.settings summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 8px 4px; }
+.settings-body { margin-top: 8px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 8px; max-width: 420px; }
+.settings-body .row { display: flex; gap: 8px; }
+.settings-body input { flex: 1; min-width: 0; font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.settings-body small { color: var(--muted); }
+.btn { font: inherit; font-weight: 600; cursor: pointer; border: 0; border-radius: 8px; padding: 7px 14px; background: var(--grass); color: var(--grass-ink); }
+.btn[disabled] { opacity: .5; cursor: default; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.cut { border-top: 1px solid var(--line); padding: 10px 14px 12px; display: grid; gap: 8px; }
+.cut .marks { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cut .range { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cut .msg { font-size: 13px; color: var(--muted); }
+.cut .msg a { color: var(--dirt); font-weight: 700; }
+.clips { margin-top: 20px; }
+.clips h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0 0 12px; }
+.cliprow { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.cliprow .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.cliprow .acts { display: flex; gap: 10px; align-items: center; }
 @media (prefers-reduced-motion: reduce) { .play { transition: none; } }
 </style>
 </head>
@@ -77,25 +105,36 @@ input[type=search]:focus-visible, button:focus-visible, a:focus-visible { outlin
   </header>
   <div class="tools">
     <input type="search" id="q" placeholder="חיפוש לפי תאריך או שם קובץ" aria-label="חיפוש">
+    <details class="settings" id="settings">
+      <summary>הגדרות קטעים</summary>
+      <div class="settings-body">
+        <label for="tok">כדי לחתוך קטעים צריך את הטוקן של GitHub (נשמר רק בדפדפן הזה):</label>
+        <div class="row"><input type="password" id="tok" autocomplete="off" placeholder="ghp_..."><button type="button" id="saveTok" class="btn">שמור</button></div>
+        <small id="tokState"></small>
+      </div>
+    </details>
   </div>
+  <section id="clips" class="clips" hidden></section>
   <main id="list"></main>
 </div>
 <script>
 const REPO = "avinoam172-rgb/minecraft-videos";
-const API = "https://api.github.com/repos/" + REPO + "/releases/tags/videos";
+const API = "https://api.github.com/repos/" + REPO;
 const days = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 const months = ["בינואר","בפברואר","במרץ","באפריל","במאי","ביוני","ביולי","באוגוסט","בספטמבר","באוקטובר","בנובמבר","בדצמבר"];
-let all = [];
+const PART_SEC = 7 * 60;
+let all = [], clips = [], branch = "main";
 
-function when(asset) {
-  // Recorded time is in the file name: minecraft-2026-11-04_23-41-07.mp4 (your own clock)
-  const m = asset.name.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
-  return new Date(asset.created_at);
+/* ---------- small helpers ---------- */
+function parseStamp(s) {
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
 }
-function size(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : Math.round(b / 1048576) + " MB"; }
+function size(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : Math.max(1, Math.round(b / 1048576)) + " MB"; }
 function pad(n) { return String(n).padStart(2, "0"); }
 function dayKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function hm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function clock(sec) { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60; return (h ? h + ":" + pad(m) : m) + ":" + pad(x); }
 function dayTitle(d) {
   const today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1);
   const base = "יום " + days[d.getDay()] + ", " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear();
@@ -104,16 +143,121 @@ function dayTitle(d) {
   return base;
 }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function token() { try { return localStorage.getItem("gh_token") || ""; } catch (e) { return ""; } }
+function headers() { const h = { Accept: "application/vnd.github+json" }; const t = token(); if (t) h.Authorization = "Bearer " + t; return h; }
 
+/* ---------- recordings: all the parts of one recording become one video ---------- */
+function group(assets) {
+  const map = new Map();
+  for (const a of assets) {
+    if (!/\.mp4$/i.test(a.name) || a.name.startsWith("pending-")) continue;
+    const m = a.name.match(/^minecraft-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})-part(\d+)\.mp4$/i);
+    const key = m ? m[1] : a.name;
+    const date = parseStamp(m ? m[1] : a.name) || new Date(a.created_at);
+    if (!map.has(key)) map.set(key, { key, date, parts: [], size: 0 });
+    const v = map.get(key);
+    v.parts.push({ n: m ? +m[2] : 1, url: a.browser_download_url, name: a.name, size: a.size, dur: null });
+    v.size += a.size;
+  }
+  const out = [...map.values()];
+  for (const v of out) v.parts.sort((x, y) => x.n - y.n);
+  return out.sort((a, b) => b.date - a.date);
+}
+
+/* Seconds from the start of the recording to the start of part i (real length when known, else 7 min). */
+function offset(v, i) { let t = 0; for (let k = 0; k < i; k++) t += v.parts[k].dur || PART_SEC; return t; }
+
+/* Plays the parts one after another; returns controls for the cut tool. */
+function player(v, screen, status) {
+  let i = 0;
+  const video = document.createElement("video");
+  video.controls = true; video.autoplay = true; video.preload = "auto";
+  const show = () => { status.textContent = v.parts.length > 1 ? "חלק " + (i + 1) + " מתוך " + v.parts.length : ""; };
+  const go = (k, at) => {
+    i = k; video.src = v.parts[i].url; show();
+    if (at) video.addEventListener("loadedmetadata", () => { video.currentTime = at; }, { once: true });
+    video.play().catch(() => {});
+  };
+  video.addEventListener("loadedmetadata", () => { if (isFinite(video.duration)) v.parts[i].dur = video.duration; });
+  video.addEventListener("ended", () => { if (i + 1 < v.parts.length) go(i + 1); });
+  screen.replaceChildren(video);
+  go(0);
+  return { go, here: () => ({ part: i, t: video.currentTime }) };
+}
+
+/* ---------- the cut tool ---------- */
+function cutTool(v, getPlayer) {
+  const box = el("div", "cut");
+  const marks = el("div", "marks");
+  const bStart = el("button", "btn ghost", "סמן התחלה");
+  const bEnd = el("button", "btn ghost", "סמן סוף");
+  const bMake = el("button", "btn", "✂ צור קטע והורד");
+  bStart.type = bEnd.type = bMake.type = "button";
+  bMake.disabled = true;
+  const range = el("span", "range", "נגן את הסרטון ולחץ \"סמן התחלה\" ואז \"סמן סוף\"");
+  const msg = el("div", "msg");
+  let a = null, b = null;
+  const g = (m) => offset(v, m.part) + m.t;
+  const update = () => {
+    if (a && b && g(b) <= g(a)) b = null;
+    range.textContent = a ? "מ-" + clock(g(a)) + (b ? " עד " + clock(g(b)) + " (" + clock(g(b) - g(a)) + ")" : " · עכשיו סמן סוף") : range.textContent;
+    bMake.disabled = !(a && b);
+  };
+  bStart.addEventListener("click", () => { const p = getPlayer(); if (!p) return; a = p.here(); update(); });
+  bEnd.addEventListener("click", () => { const p = getPlayer(); if (!p) return; b = p.here(); update(); });
+  bMake.addEventListener("click", async () => {
+    if (!token()) { msg.textContent = "קודם שמים את הטוקן ב\"הגדרות קטעים\" למעלה."; document.getElementById("settings").open = true; return; }
+    const parts = v.parts.slice(a.part, b.part + 1).map(p => p.name);
+    const name = "clip-" + v.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) + "-" + Math.round(g(a)) + "s-" + Math.round(g(b)) + "s.mp4";
+    bMake.disabled = true;
+    msg.textContent = "שולח...";
+    try {
+      const r = await fetch(API + "/actions/workflows/clip.yml/dispatches", {
+        method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, headers()),
+        body: JSON.stringify({ ref: branch, inputs: { parts: parts.join(" "), start: a.t.toFixed(2), end: b.t.toFixed(2), name } })
+      });
+      if (r.status !== 204) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(r.status === 401 ? "הטוקן לא נכון." : r.status === 404 ? "צריך לבנות את האתר מחדש במשחק: /video site" : (e.message || "GitHub ענה " + r.status));
+      }
+      msg.textContent = "GitHub חותך את הקטע... (בדרך כלל 1–3 דקות, אפשר להשאיר את הדף פתוח)";
+      const started = Date.now();
+      const timer = setInterval(async () => {
+        await loadClips();
+        const c = clips.find(x => x.name === name);
+        if (c) {
+          clearInterval(timer);
+          msg.replaceChildren("הקטע מוכן! ");
+          const link = el("a", null, "הורדה (" + size(c.size) + ")"); link.href = c.url; link.setAttribute("download", name);
+          msg.append(link);
+          bMake.disabled = false;
+          link.click();
+        } else if (Date.now() - started > 20 * 60000) {
+          clearInterval(timer);
+          msg.textContent = "זה לוקח יותר מדי זמן. בדוק ב-GitHub בלשונית Actions מה קרה.";
+          bMake.disabled = false;
+        }
+      }, 10000);
+    } catch (e) {
+      msg.textContent = "לא הצלחתי: " + e.message;
+      bMake.disabled = false;
+    }
+  });
+  marks.append(bStart, bEnd, bMake);
+  box.append(marks, range, msg);
+  return box;
+}
+
+/* ---------- page ---------- */
 function render() {
   const q = document.getElementById("q").value.trim().toLowerCase();
   const list = document.getElementById("list");
   list.replaceChildren();
-  const shown = all.filter(v => !q || v.name.toLowerCase().includes(q) || dayTitle(v.date).includes(q) || dayKey(v.date).includes(q));
+  const shown = all.filter(v => !q || v.key.toLowerCase().includes(q) || dayTitle(v.date).includes(q) || dayKey(v.date).includes(q));
   if (!shown.length) {
     const s = el("div", "state");
     s.append(el("strong", null, all.length ? "לא נמצא סרטון כזה" : "אין עדיין סרטונים"),
-             el("span", null, all.length ? "נסה חיפוש אחר." : "במשחק: /video start או /video auto, ואז /video save. הסרטון יעלה לכאן לבד."));
+             el("span", null, all.length ? "נסה חיפוש אחר." : "במשחק: /video start, והסרטון יעלה לכאן לבד."));
     list.append(s);
     return;
   }
@@ -122,29 +266,44 @@ function render() {
   for (const [, vids] of groups) {
     const sec = el("section", "day");
     const h = el("h2", null, dayTitle(vids[0].date));
-    const total = vids.reduce((a, v) => a + v.size, 0);
-    h.append(el("small", null, vids.length + " סרטונים · " + size(total)));
+    h.append(el("small", null, vids.length + " סרטונים · " + size(vids.reduce((a, v) => a + v.size, 0))));
     const grid = el("div", "grid");
     for (const v of vids) {
       const card = el("article", "clip");
       const screen = el("div", "screen");
+      const status = el("span", "partinfo");
       const play = el("button", "play", "▶");
       play.type = "button";
-      play.setAttribute("aria-label", "נגן את הסרטון של " + pad(v.date.getHours()) + ":" + pad(v.date.getMinutes()));
-      play.addEventListener("click", () => {
-        const video = document.createElement("video");
-        video.controls = true; video.autoplay = true; video.preload = "auto";
-        video.src = v.url;
-        screen.replaceChildren(video);
-      });
-      screen.append(play, el("span", "tag", size(v.size)));
+      play.setAttribute("aria-label", "נגן את ההקלטה של " + hm(v.date));
+      let ctl = null;
+      play.addEventListener("click", () => { ctl = player(v, screen, status); });
+      screen.append(play, el("span", "tag", "~" + Math.round(v.parts.length * PART_SEC / 60) + " דק׳ · " + size(v.size)));
       const meta = el("div", "meta");
       const info = el("div", "info");
-      info.append(el("div", "time", pad(v.date.getHours()) + ":" + pad(v.date.getMinutes())), el("div", "sub", v.name));
-      const dl = el("a", "dl", "הורדה");
-      dl.href = v.url; dl.setAttribute("download", v.name);
-      meta.append(info, dl);
-      card.append(screen, meta);
+      const end = new Date(v.date.getTime() + v.parts.length * PART_SEC * 1000);
+      info.append(el("div", "time", hm(v.date) + (v.parts.length > 1 ? " – " + hm(end) : "")),
+                  el("div", "sub", v.parts.length + (v.parts.length === 1 ? " חלק" : " חלקים")), status);
+      meta.append(info);
+      if (v.parts.length === 1) {
+        const dl = el("a", "dl", "הורדה"); dl.href = v.parts[0].url; dl.setAttribute("download", v.parts[0].name);
+        meta.append(dl);
+      }
+      card.append(screen, meta, cutTool(v, () => ctl));
+      if (v.parts.length > 1) {
+        const parts = el("div", "parts");
+        for (const p of v.parts) {
+          const row = el("div", "part");
+          const watch = el("button", "pbtn", "חלק " + p.n);
+          watch.type = "button";
+          watch.addEventListener("click", () => { if (!ctl) ctl = player(v, screen, status); ctl.go(v.parts.indexOf(p)); });
+          const dl = el("a", "pdl", "הורדה · " + size(p.size)); dl.href = p.url; dl.setAttribute("download", p.name);
+          row.append(watch, dl);
+          parts.append(row);
+        }
+        const more = el("details", "more");
+        more.append(el("summary", null, "החלקים (" + v.parts.length + ") · צפייה והורדה"), parts);
+        card.append(more);
+      }
       grid.append(card);
     }
     sec.append(h, grid);
@@ -152,23 +311,63 @@ function render() {
   }
 }
 
+function renderClips() {
+  const box = document.getElementById("clips");
+  box.replaceChildren();
+  box.hidden = !clips.length;
+  if (!clips.length) return;
+  box.append(el("h2", null, "קטעים שחתכת"));
+  for (const c of clips) {
+    const row = el("div", "cliprow");
+    const info = el("div");
+    const m = c.name.match(/^clip-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})-(\d+)s-(\d+)s/);
+    const d = m && parseStamp(m[1]);
+    info.append(el("div", "time", d ? dayKey(d) + " " + hm(d) + " · " + clock(+m[2]) + "–" + clock(+m[3]) : c.name), el("div", "sub", size(c.size)));
+    const acts = el("div", "acts");
+    const dl = el("a", "dl", "הורדה"); dl.href = c.url; dl.setAttribute("download", c.name);
+    const del = el("button", "btn ghost", "מחק");
+    del.type = "button";
+    let sure = false;
+    del.addEventListener("click", async () => {
+      if (!token()) { document.getElementById("settings").open = true; return; }
+      if (!sure) { sure = true; del.textContent = "בטוח?"; return; }
+      const r = await fetch(API + "/releases/assets/" + c.id, { method: "DELETE", headers: headers() });
+      if (r.status === 204) { clips = clips.filter(x => x !== c); renderClips(); } else { del.textContent = "נכשל"; }
+    });
+    acts.append(dl, del);
+    row.append(info, acts);
+    box.append(row);
+  }
+}
+
+async function releases() {
+  const r = await fetch(API + "/releases?per_page=100", { headers: headers() });
+  if (!r.ok) throw new Error(r.status === 403 ? "GitHub מגביל כמה פעמים בשעה אפשר לטעון. נסה שוב עוד כמה דקות." : "GitHub ענה " + r.status);
+  return r.json();
+}
+async function loadClips() {
+  try {
+    const rels = await releases();
+    const c = rels.find(x => x.tag_name === "clips");
+    clips = c ? c.assets.map(a => ({ id: a.id, name: a.name, size: a.size, url: a.browser_download_url })).sort((x, y) => y.name.localeCompare(x.name)) : [];
+    renderClips();
+  } catch (e) {}
+}
+
 async function load() {
   const stats = document.getElementById("stats");
   try {
-    const r = await fetch(API, { headers: { Accept: "application/vnd.github+json" } });
-    if (r.status === 404) { all = []; }
-    else if (!r.ok) throw new Error(r.status === 403 ? "GitHub מגביל כמה פעמים בשעה אפשר לטעון. נסה שוב עוד כמה דקות." : "GitHub ענה " + r.status);
-    else {
-      const rel = await r.json();
-      all = rel.assets.filter(a => /\.mp4$/i.test(a.name))
-        .map(a => ({ name: a.name, size: a.size, url: a.browser_download_url, date: when(a) }))
-        .sort((a, b) => b.date - a.date);
-    }
+    fetch(API, { headers: headers() }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.default_branch) branch = j.default_branch; }).catch(() => {});
+    const rels = await releases();
+    all = group(rels.filter(x => x.tag_name === "videos" || x.tag_name.startsWith("videos-")).flatMap(x => x.assets));
+    const c = rels.find(x => x.tag_name === "clips");
+    clips = c ? c.assets.map(a => ({ id: a.id, name: a.name, size: a.size, url: a.browser_download_url })).sort((x, y) => y.name.localeCompare(x.name)) : [];
     const total = all.reduce((a, v) => a + v.size, 0);
     stats.replaceChildren();
     const a = el("span"); a.append(el("b", null, String(all.length)), " סרטונים");
     const b = el("span"); b.append(el("b", null, size(total)), " בסך הכל");
     stats.append(a, b);
+    renderClips();
     render();
   } catch (e) {
     stats.textContent = "";
@@ -177,6 +376,16 @@ async function load() {
     document.getElementById("list").replaceChildren(s);
   }
 }
+
+/* ---------- token (only in this browser) ---------- */
+function showTok() { document.getElementById("tokState").textContent = token() ? "✓ טוקן שמור בדפדפן הזה" : "אין טוקן - אפשר לצפות ולהוריד, אבל לא לחתוך קטעים."; }
+document.getElementById("saveTok").addEventListener("click", () => {
+  const v = document.getElementById("tok").value.trim();
+  try { if (v) localStorage.setItem("gh_token", v); else localStorage.removeItem("gh_token"); } catch (e) {}
+  document.getElementById("tok").value = "";
+  showTok();
+});
+showTok();
 document.getElementById("q").addEventListener("input", render);
 load();
 </script>
